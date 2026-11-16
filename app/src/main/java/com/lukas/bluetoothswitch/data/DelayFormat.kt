@@ -19,6 +19,15 @@ object DelayFormat {
         }
     }
 
+    /** Always renders the duration as `hh:mm:ss`, keeping the hour field visible. */
+    fun formatFull(totalSeconds: Int): String {
+        val safe = totalSeconds.coerceAtLeast(0)
+        val hours = safe / 3600
+        val minutes = (safe % 3600) / 60
+        val seconds = safe % 60
+        return "$hours:${minutes.twoDigits()}:${seconds.twoDigits()}"
+    }
+
     fun parse(text: String): Int? {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return null

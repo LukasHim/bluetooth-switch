@@ -344,7 +344,10 @@ private fun ChannelCard(
                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                 ) {
                     Text(
-                        text = stringResource(R.string.current_delay, channel.delaySeconds),
+                        text = stringResource(
+                            R.string.current_delay,
+                            DelayFormat.formatFull(channel.delaySeconds),
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                     )

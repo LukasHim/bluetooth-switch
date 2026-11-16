@@ -20,6 +20,15 @@ class DelayFormatTest {
     }
 
     @Test
+    fun `formatFull always keeps the hour field`() {
+        assertEquals("0:00:00", DelayFormat.formatFull(0))
+        assertEquals("0:00:10", DelayFormat.formatFull(10))
+        assertEquals("0:01:00", DelayFormat.formatFull(60))
+        assertEquals("1:01:01", DelayFormat.formatFull(3661))
+        assertEquals("18:07:59", DelayFormat.formatFull(Protocol.MAX_DELAY_SECONDS))
+    }
+
+    @Test
     fun `parse accepts seconds minutes and hours`() {
         assertEquals(90, DelayFormat.parse("90"))
         assertEquals(60, DelayFormat.parse("1:00"))

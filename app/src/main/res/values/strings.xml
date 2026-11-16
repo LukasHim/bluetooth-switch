@@ -56,7 +56,7 @@
     <string name="channel_off">关闭</string>
     <string name="immediate_control">即时控制</string>
     <string name="delayed_control">延时控制</string>
-    <string name="current_delay">当前延时：%1$d 秒</string>
+    <string name="current_delay">当前延时：%1$s</string>
     <string name="delay_time">延时时间</string>
     <string name="delay_open">延时开启</string>
     <string name="delay_close">延时关闭</string>
