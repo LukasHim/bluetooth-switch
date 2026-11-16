@@ -21,10 +21,15 @@
 - minSdk 26，targetSdk 36
 
 ```bash
+# 日常调试（未混淆，体积大，仅用于开发）
 ./gradlew assembleDebug
+
+# 安装 / 分发（R8 混淆 + 资源压缩，体积小）
+./gradlew assembleRelease
 ```
 
-APK 输出：`app/build/outputs/apk/debug/app-debug.apk`
+- 调试 APK：`app/build/outputs/apk/debug/app-debug.apk`
+- 发布 APK：`app/build/outputs/apk/release/BTSwitch-<version>-arm64-v8a.apk`（推荐）或 `...-universal.apk`
 
 单元测试：
 
