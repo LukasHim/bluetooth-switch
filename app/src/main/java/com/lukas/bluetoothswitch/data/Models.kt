@@ -61,8 +61,54 @@ enum class ThemeMode(val storageValue: String) {
     }
 }
 
+enum class AutoRefreshMode(val storageValue: String) {
+    OFF("off"),
+    DELAYED("delayed"),
+    ALWAYS("always"),
+    ;
+
+    companion object {
+        fun fromStorage(value: String?): AutoRefreshMode =
+            entries.firstOrNull { it.storageValue == value } ?: OFF
+    }
+}
+
+data class DelayMemoryEntry(
+    val address: String,
+    val channel: Int,
+    val seconds: Int,
+) {
+    val key: String
+        get() = key(address, channel)
+
+    companion object {
+        fun key(address: String, channel: Int): String = "$address#$channel"
+
+        fun fromKey(key: String, seconds: Int): DelayMemoryEntry? {
+            val separator = key.lastIndexOf('#')
+            if (separator <= 0) return null
+            val channel = key.substring(separator + 1).toIntOrNull() ?: return null
+            if (channel !in 0..255) return null
+            return DelayMemoryEntry(
+                address = key.substring(0, separator),
+                channel = channel,
+                seconds = seconds,
+            )
+        }
+    }
+}
+
 data class AppSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val dynamicColor: Boolean = true,
     val autoConnectMacs: Set<String> = emptySet(),
-)
+    val autoRefreshMode: AutoRefreshMode = AutoRefreshMode.OFF,
+    val autoRefreshSeconds: Int = DEFAULT_AUTO_REFRESH_SECONDS,
+    val delayMemory: Map<String, Int> = emptyMap(),
+) {
+    companion object {
+        const val DEFAULT_AUTO_REFRESH_SECONDS = 5
+        const val MIN_AUTO_REFRESH_SECONDS = 1
+        const val MAX_AUTO_REFRESH_SECONDS = 3600
+    }
+}

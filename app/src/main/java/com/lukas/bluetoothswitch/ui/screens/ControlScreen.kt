@@ -19,15 +19,18 @@ import androidx.compose.material.icons.rounded.BluetoothConnected
 import androidx.compose.material.icons.rounded.BluetoothDisabled
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -36,7 +39,9 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -51,13 +56,14 @@ import androidx.compose.ui.unit.dp
 import com.lukas.bluetoothswitch.MainUiState
 import com.lukas.bluetoothswitch.R
 import com.lukas.bluetoothswitch.data.ChannelStatus
+import com.lukas.bluetoothswitch.data.DelayFormat
+import com.lukas.bluetoothswitch.data.DelayMemoryEntry
 import com.lukas.bluetoothswitch.data.Protocol
 import com.lukas.bluetoothswitch.data.SwitchControl
 import com.lukas.bluetoothswitch.ui.components.EmptyState
-import com.lukas.bluetoothswitch.ui.components.SectionHeader
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.delay
+
+private const val DEFAULT_DELAY_SECONDS = 10
 
 @Composable
 fun ControlScreen(
@@ -67,8 +73,10 @@ fun ControlScreen(
     onReadPassword: (String) -> Unit,
     onSetSwitch: (String, Int, Boolean) -> Unit,
     onSetDelay: (String, Int, Boolean, Int) -> Unit,
+    onRememberDelay: (String, Int, Int) -> Unit,
     onClearDelay: (String, Int, Boolean) -> Unit,
     onSetPassword: (String, String) -> Unit,
+    onResetPassword: (String) -> Unit,
 ) {
     val device = uiState.selectedDevice
     if (device == null) {
@@ -89,21 +97,26 @@ fun ControlScreen(
 
     val controlState = uiState.controlState
     val channels = controlState.channelsOrDefault
-    val statusTime = remember(controlState.lastStatusAt) {
-        controlState.lastStatusAt?.let { timestamp ->
-            Instant.ofEpochMilli(timestamp)
-                .atZone(ZoneId.systemDefault())
-                .format(DateTimeFormatter.ofPattern("HH:mm:ss"))
-        }
-    }
-    val passwordText = when {
-        controlState.passwordHex == null -> stringResource(R.string.password_not_read)
-        controlState.passwordHex.equals("FFFFFFFFFFFF", ignoreCase = true) -> {
-            stringResource(R.string.password_factory_default)
-        }
+    val lastStatusAt = controlState.lastStatusAt
 
-        else -> controlState.passwordHex.chunked(2).joinToString(" ")
+    var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(lastStatusAt) {
+        while (true) {
+            nowMillis = System.currentTimeMillis()
+            delay(1_000L)
+        }
     }
+
+    val statusText = if (lastStatusAt == null) {
+        stringResource(R.string.status_not_read)
+    } else {
+        stringResource(
+            R.string.status_updated_relative,
+            formatRelativeTime(nowMillis - lastStatusAt),
+        )
+    }
+    val passwordHex = controlState.passwordHex
+    val passwordAscii = passwordHex?.let(Protocol::decodePasswordAscii).orEmpty()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -114,7 +127,7 @@ fun ControlScreen(
             DeviceHeaderCard(
                 name = device.displayName,
                 address = device.address,
-                statusTime = statusTime,
+                statusText = statusText,
                 notificationsEnabled = controlState.notificationsEnabled,
                 onReadStatus = { onReadStatus(device.address) },
             )
@@ -125,26 +138,45 @@ fun ControlScreen(
                 ChannelCard(
                     deviceAddress = device.address,
                     channel = channel,
+                    rememberedSeconds = uiState.settings.delayMemory[
+                        DelayMemoryEntry.key(device.address, channel.channel)
+                    ],
                     onSetSwitch = { on -> onSetSwitch(device.address, channel.channel, on) },
                     onSetDelay = { on, seconds ->
                         onSetDelay(device.address, channel.channel, on, seconds)
+                    },
+                    onRememberDelay = { seconds ->
+                        onRememberDelay(device.address, channel.channel, seconds)
                     },
                     onClearDelay = { onClearDelay(device.address, channel.channel, channel.isOn) },
                 )
             }
         }
 
-        item(key = "password_header") {
-            SectionHeader(title = stringResource(R.string.password_title))
-        }
         item(key = "password") {
             PasswordCard(
                 deviceAddress = device.address,
-                passwordText = passwordText,
+                passwordHex = passwordHex,
+                passwordAscii = passwordAscii,
                 onReadPassword = { onReadPassword(device.address) },
                 onSetPassword = { password -> onSetPassword(device.address, password) },
+                onResetPassword = { onResetPassword(device.address) },
             )
         }
+    }
+}
+
+private fun formatRelativeTime(elapsedMillis: Long): String {
+    val totalSeconds = elapsedMillis.coerceAtLeast(0L) / 1_000L
+    if (totalSeconds > 86_400L) return ">24h"
+
+    val hours = totalSeconds / 3_600L
+    val minutes = (totalSeconds % 3_600L) / 60L
+    val seconds = totalSeconds % 60L
+    return buildString {
+        if (hours > 0) append(hours).append('h')
+        if (hours > 0 || minutes > 0) append(minutes).append('m')
+        append(seconds).append('s')
     }
 }
 
@@ -152,7 +184,7 @@ fun ControlScreen(
 private fun DeviceHeaderCard(
     name: String,
     address: String,
-    statusTime: String?,
+    statusText: String,
     notificationsEnabled: Boolean,
     onReadStatus: () -> Unit,
 ) {
@@ -195,22 +227,16 @@ private fun DeviceHeaderCard(
                         fontFamily = FontFamily.Monospace,
                     )
                 }
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.tertiaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                ) {
-                    Text(
-                        text = stringResource(R.string.connected),
-                        style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                IconButton(onClick = onReadStatus) {
+                    Icon(
+                        imageVector = Icons.Rounded.Refresh,
+                        contentDescription = stringResource(R.string.read_status),
                     )
                 }
             }
 
             Text(
-                text = statusTime?.let { stringResource(R.string.status_updated_at, it) }
-                    ?: stringResource(R.string.status_not_read),
+                text = statusText,
                 style = MaterialTheme.typography.bodySmall,
             )
 
@@ -230,19 +256,6 @@ private fun DeviceHeaderCard(
                     )
                 }
             }
-
-            FilledTonalButton(
-                onClick = onReadStatus,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Refresh,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(stringResource(R.string.read_status))
-            }
         }
     }
 }
@@ -251,15 +264,37 @@ private fun DeviceHeaderCard(
 private fun ChannelCard(
     deviceAddress: String,
     channel: ChannelStatus,
+    rememberedSeconds: Int?,
     onSetSwitch: (Boolean) -> Unit,
     onSetDelay: (Boolean, Int) -> Unit,
+    onRememberDelay: (Int) -> Unit,
     onClearDelay: () -> Unit,
 ) {
-    var delayText by rememberSaveable(deviceAddress, channel.channel) {
-        mutableStateOf(if (channel.delaySeconds > 0) channel.delaySeconds.toString() else "10")
+    val initialSeconds = rememberedSeconds
+        ?: channel.delaySeconds.takeIf { seconds -> seconds > 0 }
+        ?: DEFAULT_DELAY_SECONDS
+    var delayText by remember(deviceAddress, channel.channel) {
+        mutableStateOf(DelayFormat.format(initialSeconds))
     }
-    val delaySeconds = delayText.toIntOrNull()
-    val delayValid = delaySeconds != null && delaySeconds in 0..Protocol.MAX_DELAY_SECONDS
+    var edited by remember(deviceAddress, channel.channel) { mutableStateOf(false) }
+    var showPicker by remember(deviceAddress, channel.channel) { mutableStateOf(false) }
+
+    LaunchedEffect(rememberedSeconds) {
+        if (rememberedSeconds != null && DelayFormat.parse(delayText) != rememberedSeconds) {
+            delayText = DelayFormat.format(rememberedSeconds)
+        }
+    }
+    LaunchedEffect(channel.delaySeconds) {
+        if (!edited && rememberedSeconds == null && channel.delaySeconds > 0) {
+            val current = DelayFormat.parse(delayText)
+            if (current == null || current == DEFAULT_DELAY_SECONDS) {
+                delayText = DelayFormat.format(channel.delaySeconds)
+            }
+        }
+    }
+
+    val delaySeconds = DelayFormat.parse(delayText)
+    val delayValid = delaySeconds != null
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -318,38 +353,62 @@ private fun ChannelCard(
 
             HorizontalDivider()
 
-            OutlinedTextField(
-                value = delayText,
-                onValueChange = { value ->
-                    delayText = value.filter(Char::isDigit).take(5)
-                },
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text(stringResource(R.string.delay_seconds)) },
-                supportingText = {
-                    Text(
-                        stringResource(
-                            if (delayValid) R.string.delay_hint else R.string.message_invalid_delay,
-                        ),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedTextField(
+                    value = delayText,
+                    onValueChange = { value ->
+                        delayText = DelayFormat.sanitizeInput(value)
+                        edited = true
+                    },
+                    modifier = Modifier.weight(1f),
+                    label = { Text(stringResource(R.string.delay_time)) },
+                    supportingText = if (!delayValid) {
+                        { Text(stringResource(R.string.message_invalid_delay)) }
+                    } else {
+                        null
+                    },
+                    isError = !delayValid,
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                )
+                FilledTonalIconButton(
+                    onClick = { showPicker = true },
+                    modifier = Modifier.size(56.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Schedule,
+                        contentDescription = stringResource(R.string.pick_duration),
                     )
-                },
-                isError = !delayValid,
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            )
+                }
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Button(
-                    onClick = { delaySeconds?.let { onSetDelay(true, it) } },
+                    onClick = {
+                        delaySeconds?.let { seconds ->
+                            edited = true
+                            onSetDelay(true, seconds)
+                        }
+                    },
                     enabled = delayValid,
                     modifier = Modifier.weight(1f),
                 ) {
                     Text(stringResource(R.string.delay_open))
                 }
                 FilledTonalButton(
-                    onClick = { delaySeconds?.let { onSetDelay(false, it) } },
+                    onClick = {
+                        delaySeconds?.let { seconds ->
+                            edited = true
+                            onSetDelay(false, seconds)
+                        }
+                    },
                     enabled = delayValid,
                     modifier = Modifier.weight(1f),
                 ) {
@@ -371,16 +430,137 @@ private fun ChannelCard(
             }
         }
     }
+
+    if (showPicker) {
+        DurationPickerDialog(
+            initialSeconds = delaySeconds ?: 0,
+            onDismiss = { showPicker = false },
+            onConfirm = { seconds ->
+                delayText = DelayFormat.format(seconds)
+                edited = true
+                onRememberDelay(seconds)
+                showPicker = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun DurationPickerDialog(
+    initialSeconds: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (Int) -> Unit,
+) {
+    var hoursText by rememberSaveable { mutableStateOf((initialSeconds / 3600).toString()) }
+    var minutesText by rememberSaveable { mutableStateOf(((initialSeconds % 3600) / 60).toString()) }
+    var secondsText by rememberSaveable { mutableStateOf((initialSeconds % 60).toString()) }
+
+    val hours = hoursText.toIntOrNull() ?: 0
+    val minutes = minutesText.toIntOrNull()
+    val seconds = secondsText.toIntOrNull()
+    val total = if (minutes != null && seconds != null &&
+        minutes in 0..59 && seconds in 0..59
+    ) {
+        hours * 3600 + minutes * 60 + seconds
+    } else {
+        null
+    }
+    val valid = total != null && total in 0..Protocol.MAX_DELAY_SECONDS
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.pick_duration)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DurationField(
+                        value = hoursText,
+                        onValueChange = { value ->
+                            hoursText = value.filter(Char::isDigit).take(2)
+                        },
+                        label = stringResource(R.string.duration_hours),
+                        modifier = Modifier.weight(1f),
+                    )
+                    DurationField(
+                        value = minutesText,
+                        onValueChange = { value ->
+                            minutesText = value.filter(Char::isDigit).take(2)
+                        },
+                        label = stringResource(R.string.duration_minutes),
+                        isError = !valid,
+                        modifier = Modifier.weight(1f),
+                    )
+                    DurationField(
+                        value = secondsText,
+                        onValueChange = { value ->
+                            secondsText = value.filter(Char::isDigit).take(2)
+                        },
+                        label = stringResource(R.string.duration_seconds),
+                        isError = !valid,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                Text(
+                    text = if (valid) {
+                        stringResource(R.string.duration_total, DelayFormat.format(total ?: 0))
+                    } else {
+                        stringResource(R.string.message_invalid_delay)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (valid) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    },
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { total?.let(onConfirm) },
+                enabled = valid,
+            ) {
+                Text(stringResource(R.string.confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        },
+    )
+}
+
+@Composable
+private fun DurationField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    isError: Boolean = false,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier,
+        label = { Text(label) },
+        isError = isError,
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+    )
 }
 
 @Composable
 private fun PasswordCard(
     deviceAddress: String,
-    passwordText: String,
+    passwordHex: String?,
+    passwordAscii: String,
     onReadPassword: () -> Unit,
     onSetPassword: (String) -> Unit,
+    onResetPassword: () -> Unit,
 ) {
     var passwordInput by rememberSaveable(deviceAddress) { mutableStateOf("") }
+    var showResetConfirm by remember { mutableStateOf(false) }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -410,18 +590,36 @@ private fun PasswordCard(
                 contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(
-                    text = passwordText,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontFamily = FontFamily.Monospace,
+                Column(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                )
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    if (passwordHex == null) {
+                        Text(
+                            text = stringResource(R.string.password_not_read),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    } else {
+                        PasswordValueRow(
+                            label = stringResource(R.string.password_hex_label),
+                            value = passwordHex.chunked(2).joinToString(" "),
+                        )
+                        PasswordValueRow(
+                            label = stringResource(R.string.password_ascii_label),
+                            value = passwordAscii.ifEmpty {
+                                stringResource(R.string.password_ascii_empty)
+                            },
+                        )
+                    }
+                }
             }
 
             OutlinedTextField(
                 value = passwordInput,
                 onValueChange = { value ->
-                    passwordInput = value.filter(Char::isDigit).take(6)
+                    passwordInput = value
+                        .filter { char -> char.code in 0x20..0x7E }
+                        .take(6)
                 },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text(stringResource(R.string.password_input_label)) },
@@ -429,42 +627,79 @@ private fun PasswordCard(
                     Text(stringResource(R.string.password_input_support, passwordInput.length))
                 },
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
             )
 
-            Button(
-                onClick = {
-                    onSetPassword(passwordInput)
-                    passwordInput = ""
-                },
-                enabled = passwordInput.length == 6,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Check,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(stringResource(R.string.set_password))
-            }
-
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.Lock,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    text = stringResource(R.string.password_rule),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Button(
+                    onClick = {
+                        onSetPassword(passwordInput)
+                        passwordInput = ""
+                    },
+                    enabled = passwordInput.isNotEmpty(),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(stringResource(R.string.set_password))
+                }
+                OutlinedButton(onClick = { showResetConfirm = true }) {
+                    Text(stringResource(R.string.password_reset))
+                }
             }
         }
+    }
+
+    if (showResetConfirm) {
+        AlertDialog(
+            onDismissRequest = { showResetConfirm = false },
+            title = { Text(stringResource(R.string.password_reset_confirm_title)) },
+            text = { Text(stringResource(R.string.password_reset_confirm_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showResetConfirm = false
+                        onResetPassword()
+                    },
+                ) {
+                    Text(stringResource(R.string.reset))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetConfirm = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun PasswordValueRow(
+    label: String,
+    value: String,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(44.dp),
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontFamily = FontFamily.Monospace,
+            modifier = Modifier.weight(1f),
+        )
     }
 }

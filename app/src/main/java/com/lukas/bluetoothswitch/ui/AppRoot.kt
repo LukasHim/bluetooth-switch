@@ -140,6 +140,24 @@ fun AppRoot(
         }
     }
 
+    DisposableEffect(lifecycleOwner, viewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> viewModel.setForeground(true)
+                Lifecycle.Event.ON_STOP -> viewModel.setForeground(false)
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        viewModel.setForeground(
+            lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED),
+        )
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            viewModel.setForeground(false)
+        }
+    }
+
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
@@ -232,6 +250,7 @@ fun AppRoot(
                     onReadPassword = viewModel::readPassword,
                     onSetSwitch = viewModel::setSwitch,
                     onSetDelay = viewModel::setDelay,
+                    onRememberDelay = viewModel::rememberDelay,
                     onClearDelay = viewModel::clearDelay,
                     onSetPassword = { address, password ->
                         viewModel.setPassword(address, password)
@@ -241,12 +260,24 @@ fun AppRoot(
                             )
                         }
                     },
+                    onResetPassword = { address ->
+                        viewModel.resetPassword(address)
+                        scope.launch {
+                            snackbarHostState.showSnackbar(
+                                resources.getString(R.string.password_reset_sent),
+                            )
+                        }
+                    },
                 )
 
                 AppTab.SETTINGS -> SettingsScreen(
                     settings = uiState.settings,
                     onThemeModeChange = viewModel::setThemeMode,
                     onDynamicColorChange = viewModel::setDynamicColor,
+                    onAutoRefreshModeChange = viewModel::setAutoRefreshMode,
+                    onAutoRefreshSecondsChange = viewModel::setAutoRefreshSeconds,
+                    onDeleteDelayMemory = viewModel::deleteDelayMemory,
+                    onClearDelayMemories = viewModel::clearDelayMemories,
                 )
             }
         }

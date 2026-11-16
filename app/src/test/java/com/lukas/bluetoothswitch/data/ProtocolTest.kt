@@ -67,6 +67,51 @@ class ProtocolTest {
     }
 
     @Test
+    fun `password command supports ascii and pads with FF`() {
+        assertArrayEquals(
+            byteArrayOf(
+                0xAA.toByte(),
+                0x07,
+                0xA4.toByte(),
+                0x41,
+                0x01,
+                0xFF.toByte(),
+                0xFF.toByte(),
+                0xFF.toByte(),
+                0xFF.toByte(),
+            ),
+            Protocol.setPassword("A1"),
+        )
+    }
+
+    @Test
+    fun `reset password command uses six FF bytes`() {
+        assertArrayEquals(
+            byteArrayOf(
+                0xAA.toByte(),
+                0x07,
+                0xA4.toByte(),
+                0xFF.toByte(),
+                0xFF.toByte(),
+                0xFF.toByte(),
+                0xFF.toByte(),
+                0xFF.toByte(),
+                0xFF.toByte(),
+            ),
+            Protocol.resetPassword(),
+        )
+    }
+
+    @Test
+    fun `decode password maps digits and trims FF padding`() {
+        assertEquals("123", Protocol.decodePasswordAscii("010203FFFFFF"))
+        assertEquals("A1", Protocol.decodePasswordAscii("4101FFFFFF"))
+        assertEquals("", Protocol.decodePasswordAscii("FFFFFFFFFFFF"))
+        assertTrue(Protocol.isPasswordUnset("FFFFFFFFFFFF"))
+        assertTrue(!Protocol.isPasswordUnset("4101FFFFFF"))
+    }
+
+    @Test
     fun `parse immediate status notification`() {
         val messages = Protocol.parseNotification(
             byteArrayOf(0xA0.toByte(), 0x01, 0xA1.toByte(), 0xFF.toByte(), 0x00, 0x00),

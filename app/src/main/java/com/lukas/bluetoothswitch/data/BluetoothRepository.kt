@@ -601,9 +601,7 @@ class BluetoothRepository(context: Context) {
         runCatching {
             gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
         }
-        if (connection.notificationsEnabled) {
-            readStatus(connection.address)
-        }
+        readStatus(connection.address)
     }
 
     private fun handleNotification(address: String, value: ByteArray?) {

@@ -4,18 +4,22 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.lukas.bluetoothswitch.data.AppSettings
+import com.lukas.bluetoothswitch.data.AutoRefreshMode
 import com.lukas.bluetoothswitch.data.BleDevice
 import com.lukas.bluetoothswitch.data.BleEvent
 import com.lukas.bluetoothswitch.data.BluetoothRepository
+import com.lukas.bluetoothswitch.data.DelayMemoryEntry
 import com.lukas.bluetoothswitch.data.DeviceControlState
 import com.lukas.bluetoothswitch.data.Protocol
 import com.lukas.bluetoothswitch.data.SettingsRepository
 import com.lukas.bluetoothswitch.data.ThemeMode
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 data class MainUiState(
@@ -37,6 +41,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val selectedAddress = MutableStateFlow<String?>(null)
     private val latestSettings = MutableStateFlow(AppSettings())
+    private val isForeground = MutableStateFlow(false)
 
     private data class PartialState(
         val settings: AppSettings,
@@ -100,6 +105,45 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+        viewModelScope.launch {
+            var elapsedMs = 0L
+            while (isActive) {
+                delay(AUTO_REFRESH_TICK_MS)
+                if (!isForeground.value) {
+                    elapsedMs = 0L
+                    continue
+                }
+
+                val settings = latestSettings.value
+                val interval = settings.autoRefreshSeconds.coerceIn(
+                    AppSettings.MIN_AUTO_REFRESH_SECONDS,
+                    AppSettings.MAX_AUTO_REFRESH_SECONDS,
+                )
+                elapsedMs += AUTO_REFRESH_TICK_MS
+                if (elapsedMs < interval * 1_000L) continue
+                elapsedMs = 0L
+
+                val mode = settings.autoRefreshMode
+                if (mode == AutoRefreshMode.OFF) continue
+
+                val controlStates = bluetoothRepository.controlStates.value
+                bluetoothRepository.devices.value
+                    .filter { device -> device.isConnected }
+                    .forEach { device ->
+                        val hasDelay = controlStates[device.address]
+                            ?.channels
+                            ?.values
+                            ?.any { channel -> channel.delaySeconds > 0 } == true
+                        if (mode == AutoRefreshMode.ALWAYS || hasDelay) {
+                            bluetoothRepository.readStatus(device.address)
+                        }
+                    }
+            }
+        }
+    }
+
+    fun setForeground(foreground: Boolean) {
+        isForeground.value = foreground
     }
 
     fun startScan() = bluetoothRepository.startScan()
@@ -135,7 +179,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setDelay(address: String, channel: Int, on: Boolean, seconds: Int) {
         if (seconds !in 0..Protocol.MAX_DELAY_SECONDS) return
+        rememberDelay(address, channel, seconds)
         bluetoothRepository.send(address, Protocol.setDelay(channel, on, seconds))
+    }
+
+    fun rememberDelay(address: String, channel: Int, seconds: Int) {
+        if (seconds !in 0..Protocol.MAX_DELAY_SECONDS) return
+        val key = DelayMemoryEntry.key(address, channel)
+        latestSettings.value = latestSettings.value.copy(
+            delayMemory = latestSettings.value.delayMemory + (key to seconds),
+        )
+        viewModelScope.launch {
+            settingsRepository.setDelayMemory(address, channel, seconds)
+        }
+    }
+
+    fun deleteDelayMemory(key: String) {
+        val entry = DelayMemoryEntry.fromKey(key, latestSettings.value.delayMemory[key] ?: 0) ?: return
+        latestSettings.value = latestSettings.value.copy(
+            delayMemory = latestSettings.value.delayMemory - key,
+        )
+        viewModelScope.launch {
+            settingsRepository.setDelayMemory(entry.address, entry.channel, null)
+        }
+    }
+
+    fun clearDelayMemories() {
+        latestSettings.value = latestSettings.value.copy(delayMemory = emptyMap())
+        viewModelScope.launch { settingsRepository.clearDelayMemories() }
     }
 
     fun clearDelay(address: String, channel: Int, actionOn: Boolean) {
@@ -147,8 +218,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun readPassword(address: String) = bluetoothRepository.readPassword(address)
 
     fun setPassword(address: String, password: String) {
-        if (password.length != 6 || password.any { !it.isDigit() }) return
+        if (password.isEmpty() || password.length > 6) return
+        if (password.any { char -> char.code !in 0x20..0x7E }) return
         bluetoothRepository.send(address, Protocol.setPassword(password))
+    }
+
+    fun resetPassword(address: String) {
+        bluetoothRepository.send(address, Protocol.resetPassword())
     }
 
     fun setThemeMode(themeMode: ThemeMode) {
@@ -159,8 +235,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { settingsRepository.setDynamicColor(enabled) }
     }
 
+    fun setAutoRefreshMode(mode: AutoRefreshMode) {
+        latestSettings.value = latestSettings.value.copy(autoRefreshMode = mode)
+        viewModelScope.launch { settingsRepository.setAutoRefreshMode(mode) }
+    }
+
+    fun setAutoRefreshSeconds(seconds: Int) {
+        if (seconds !in AppSettings.MIN_AUTO_REFRESH_SECONDS..AppSettings.MAX_AUTO_REFRESH_SECONDS) {
+            return
+        }
+        latestSettings.value = latestSettings.value.copy(autoRefreshSeconds = seconds)
+        viewModelScope.launch { settingsRepository.setAutoRefreshSeconds(seconds) }
+    }
+
     override fun onCleared() {
         bluetoothRepository.close()
         super.onCleared()
+    }
+
+    private companion object {
+        const val AUTO_REFRESH_TICK_MS = 1_000L
     }
 }

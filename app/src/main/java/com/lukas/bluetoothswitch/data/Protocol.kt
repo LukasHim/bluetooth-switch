@@ -39,6 +39,11 @@ object Protocol {
     private const val RX_PASSWORD_HEADER = 0xA5
     private const val RX_STATUS_HEADER = 0xA0
 
+    private const val PASSWORD_BYTES = 6
+    private const val PRINTABLE_ASCII_MIN = 0x20
+    private const val PRINTABLE_ASCII_MAX = 0x7E
+    private val PASSWORD_PADDING: Byte = 0xFF.toByte()
+
     fun readPassword(): ByteArray = byteArrayOf(
         FRAME_HEADER.toByte(),
         0x01,
@@ -92,15 +97,61 @@ object Protocol {
     }
 
     fun setPassword(password: String): ByteArray {
-        require(password.length == 6 && password.all(Char::isDigit)) {
-            "password must contain exactly 6 digits"
+        require(password.length in 1..PASSWORD_BYTES) {
+            "password must contain 1 to $PASSWORD_BYTES characters"
         }
-        val payload = ByteArray(6) { index -> (password[index] - '0').toByte() }
+        require(password.all { it.code in PRINTABLE_ASCII_MIN..PRINTABLE_ASCII_MAX }) {
+            "password must contain printable ASCII characters"
+        }
+        val payload = ByteArray(PASSWORD_BYTES) { PASSWORD_PADDING }
+        password.forEachIndexed { index, char ->
+            payload[index] = passwordCharToByte(char)
+        }
         return byteArrayOf(
             FRAME_HEADER.toByte(),
             0x07,
             CMD_PASSWORD.toByte(),
         ) + payload
+    }
+
+    fun resetPassword(): ByteArray = byteArrayOf(
+        FRAME_HEADER.toByte(),
+        0x07,
+        CMD_PASSWORD.toByte(),
+        PASSWORD_PADDING,
+        PASSWORD_PADDING,
+        PASSWORD_PADDING,
+        PASSWORD_PADDING,
+        PASSWORD_PADDING,
+        PASSWORD_PADDING,
+    )
+
+    fun isPasswordUnset(hex: String): Boolean =
+        hex.length == PASSWORD_BYTES * 2 &&
+            hex.all { char -> char == 'F' || char == 'f' }
+
+    /**
+     * Decodes the byte payload of a password frame back to text.
+     *
+     * Bytes 0x00–0x09 map back to the digits '0'–'9' (the wire format swaps the
+     * digit characters with their numeric values). Trailing 0xFF bytes are
+     * padding and stop decoding.
+     */
+    fun decodePasswordAscii(hex: String): String {
+        val builder = StringBuilder()
+        var index = 0
+        while (index + 1 < hex.length) {
+            val value = hex.substring(index, index + 2).toIntOrNull(16) ?: break
+            if (value == 0xFF) break
+            val char = when {
+                value in 0..9 -> ('0'.code + value).toChar()
+                value in PRINTABLE_ASCII_MIN..PRINTABLE_ASCII_MAX -> value.toChar()
+                else -> '.'
+            }
+            builder.append(char)
+            index += 2
+        }
+        return builder.toString()
     }
 
     fun parseNotification(data: ByteArray): List<IncomingMessage> {
@@ -150,6 +201,9 @@ object Protocol {
         bytes.joinToString(separator = " ") { byte -> "%02X".format(Locale.ROOT, byte.toInt() and 0xFF) }
 
     private fun stateByte(on: Boolean): Byte = if (on) 0xFF.toByte() else 0x00
+
+    private fun passwordCharToByte(char: Char): Byte =
+        if (char in '0'..'9') (char - '0').toByte() else char.code.toByte()
 
     private fun looksLikeAsciiHex(data: ByteArray): Boolean {
         if (data.size < 2 || data.size % 2 != 0) return false
