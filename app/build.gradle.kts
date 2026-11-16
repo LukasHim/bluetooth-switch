@@ -59,10 +59,13 @@ android {
     }
 
     applicationVariants.all {
+        val variant = this
         outputs.all {
             val output = this as? com.android.build.gradle.internal.api.BaseVariantOutputImpl
             output?.let {
-                it.outputFileName = it.outputFileName.replace("app", "BTSwitch")
+                val abi = it.getFilter("ABI") ?: "universal"
+                val version = variant.versionName
+                it.outputFileName = "BTSwitch-${version}-${abi}.apk"
             }
         }
     }
