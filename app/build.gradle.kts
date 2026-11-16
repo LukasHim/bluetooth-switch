@@ -18,6 +18,20 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    splits {
+        abi {
+            isEnable = true
+
+            reset()
+
+            include(
+                "arm64-v8a"
+            )
+
+            isUniversalApk = true
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -41,6 +55,15 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+    }
+
+    applicationVariants.all {
+        outputs.all {
+            val output = this as? com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            output?.let {
+                it.outputFileName = it.outputFileName.replace("app", "BTSwitch")
+            }
         }
     }
 }
