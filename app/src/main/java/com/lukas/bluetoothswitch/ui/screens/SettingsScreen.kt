@@ -259,23 +259,6 @@ fun SettingsScreen(
                         label = stringResource(R.string.about_devices),
                         value = stringResource(R.string.about_devices_value),
                     )
-
-                    HorizontalDivider()
-
-                    Text(
-                        text = stringResource(R.string.protocol_commands),
-                        style = MaterialTheme.typography.titleSmall,
-                    )
-                    Text(
-                        text = stringResource(R.string.protocol_commands_description),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        text = stringResource(R.string.about_protocol_note),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
             }
         }

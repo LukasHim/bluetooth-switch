@@ -93,13 +93,10 @@
     <string name="about_protocol_value">明文 Hex · BLE 透传</string>
     <string name="about_devices">支持设备</string>
     <string name="about_devices_value">名称以 YX_ 或 BK_ 开头</string>
-    <string name="about_protocol_note">状态、延时与密码均按照 protocol.md 中的字节格式解析和发送。</string>
 
     <string name="settings_general">通用</string>
     <string name="auto_connect_summary">已启用自动连接的设备：%1$d 个</string>
     <string name="auto_connect_summary_none">尚未为任何设备启用自动连接</string>
-    <string name="protocol_commands">协议指令</string>
-    <string name="protocol_commands_description">读取状态 AA 01 A0 · 读取密码 AA 01 A5 · 即时开关 AA 03 A1 · 延时控制 AA 05 A2 · 设置密码 AA 07 A4</string>
 
     <string name="message_permission_missing">缺少蓝牙权限，请先授予权限</string>
     <string name="message_bluetooth_unavailable">此设备不支持蓝牙</string>
