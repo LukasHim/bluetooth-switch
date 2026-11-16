@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">BT Switch</string>
+
+    <string name="nav_devices">设备</string>
+    <string name="nav_control">控制</string>
+    <string name="nav_settings">设置</string>
+
+    <string name="permission_title">需要蓝牙权限</string>
+    <string name="permission_message">授予附近设备权限后，才能扫描并连接 YX_ / BK_ 蓝牙开关。</string>
+    <string name="permission_denied_message">蓝牙权限未授予。若系统不再弹出授权窗口，请前往应用设置手动开启。</string>
+    <string name="grant_permission">授予权限</string>
+    <string name="open_app_settings">应用设置</string>
+
+    <string name="bluetooth_off_title">蓝牙未开启</string>
+    <string name="bluetooth_off_message">请开启蓝牙以扫描附近的开关设备。</string>
+    <string name="enable_bluetooth">开启蓝牙</string>
+
+    <string name="location_off_title">需要开启定位服务</string>
+    <string name="location_off_message">Android 11 及以下系统扫描蓝牙设备时需要开启定位服务。</string>
+    <string name="open_location_settings">定位设置</string>
+
+    <string name="scanning">正在扫描 YX_ / BK_ 设备…</string>
+    <string name="scan_idle">扫描已停止</string>
+    <string name="scan_again">重新扫描</string>
+    <string name="start_scan">开始扫描</string>
+    <string name="scan_hint">自动连接只会在本页扫描到对应设备时生效</string>
+
+    <string name="section_connected">已连接</string>
+    <string name="section_disconnected">未连接</string>
+    <string name="no_devices_title">没有发现设备</string>
+    <string name="no_devices_message">请确认设备已上电，并处于可连接状态。</string>
+
+    <string name="connect">连接</string>
+    <string name="disconnect">断开</string>
+    <string name="connecting">连接中</string>
+    <string name="disconnecting">断开中</string>
+    <string name="connected">已连接</string>
+    <string name="auto_connect">自动连接</string>
+    <string name="auto_connect_description">扫描到该设备时自动连接</string>
+    <string name="device_address">MAC %1$s</string>
+    <string name="device_rssi">%1$d dBm</string>
+
+    <string name="control_no_device_title">暂无已连接设备</string>
+    <string name="control_no_device_message">请先在“设备”页连接一个蓝牙开关。</string>
+    <string name="go_to_devices">前往设备页</string>
+    <string name="control_title">控制</string>
+    <string name="select_device">选择设备</string>
+
+    <string name="read_status">读取状态</string>
+    <string name="read_password">读取密码</string>
+    <string name="status_not_read">尚未读取到状态</string>
+    <string name="status_updated_at">状态更新于 %1$s</string>
+    <string name="channel_title">通道 %1$d</string>
+    <string name="channel_on">开启</string>
+    <string name="channel_off">关闭</string>
+    <string name="immediate_control">即时控制</string>
+    <string name="delayed_control">延时控制</string>
+    <string name="current_delay">当前延时：%1$d 秒</string>
+    <string name="delay_seconds">延时时间（秒）</string>
+    <string name="delay_open">延时开启</string>
+    <string name="delay_close">延时关闭</string>
+    <string name="clear_delay">清除延时</string>
+    <string name="delay_hint">范围 0–65279 秒，发送 AA 05 A2 指令</string>
+    <string name="notifications_unavailable">设备未提供状态通知特征，界面状态可能不会自动刷新。</string>
+
+    <string name="password_title">设备密码</string>
+    <string name="password_description">仅用于查看或设置 MCU 密码，读到的密码不会被自动使用。</string>
+    <string name="password_not_read">尚未读取</string>
+    <string name="password_factory_default">未设置（出厂默认 FFFFFFFFFFFF）</string>
+    <string name="password_input_label">6 位数字密码</string>
+    <string name="password_input_support">%1$d/6</string>
+    <string name="set_password">设置密码</string>
+    <string name="password_rule">设置指令：AA 07 A4 + 6 字节密码数据</string>
+    <string name="password_command_sent">已发送设置密码指令</string>
+
+    <string name="settings_appearance">外观</string>
+    <string name="theme_mode">主题模式</string>
+    <string name="theme_mode_description">选择应用使用浅色、深色，还是跟随系统。</string>
+    <string name="theme_system">跟随系统</string>
+    <string name="theme_light">浅色模式</string>
+    <string name="theme_dark">深色模式</string>
+    <string name="dynamic_color">动态取色</string>
+    <string name="dynamic_color_unavailable">当前系统版本低于 Android 12，动态取色不可用。</string>
+    <string name="dynamic_color_enabled">已开启，将跟随系统壁纸配色</string>
+    <string name="dynamic_color_disabled">已关闭，使用应用默认配色</string>
+
+    <string name="settings_about">关于</string>
+    <string name="about_description">用于控制 YX_ / BK_ 系列蓝牙开关的 BLE 工具。</string>
+    <string name="about_version">版本</string>
+    <string name="about_package">包名</string>
+    <string name="about_protocol">通信协议</string>
+    <string name="about_protocol_value">明文 Hex · BLE 透传</string>
+    <string name="about_devices">支持设备</string>
+    <string name="about_devices_value">名称以 YX_ 或 BK_ 开头</string>
+    <string name="about_protocol_note">状态、延时与密码均按照 protocol.md 中的字节格式解析和发送。</string>
+
+    <string name="settings_general">通用</string>
+    <string name="auto_connect_summary">已启用自动连接的设备：%1$d 个</string>
+    <string name="auto_connect_summary_none">尚未为任何设备启用自动连接</string>
+    <string name="protocol_commands">协议指令</string>
+    <string name="protocol_commands_description">读取状态 AA 01 A0 · 读取密码 AA 01 A5 · 即时开关 AA 03 A1 · 延时控制 AA 05 A2 · 设置密码 AA 07 A4</string>
+
+    <string name="message_permission_missing">缺少蓝牙权限，请先授予权限</string>
+    <string name="message_bluetooth_unavailable">此设备不支持蓝牙</string>
+    <string name="message_bluetooth_disabled">蓝牙未开启</string>
+    <string name="message_not_connected">设备未连接</string>
+    <string name="message_scan_failed">扫描失败（错误码 %1$d）</string>
+    <string name="message_connect_failed">连接失败（状态码 %1$d）</string>
+    <string name="message_no_write_characteristic">设备未提供可写特征，无法发送控制指令</string>
+    <string name="message_services_failed">获取蓝牙服务失败（状态码 %1$d）</string>
+    <string name="message_notifications_unavailable">已连接，但设备不支持状态通知</string>
+    <string name="message_command_failed">指令发送失败</string>
+    <string name="message_device_connected">已连接：%1$s</string>
+    <string name="message_device_disconnected">已断开：%1$s</string>
+    <string name="message_invalid_delay">延时时间必须在 0–65279 秒之间</string>
+</resources>
