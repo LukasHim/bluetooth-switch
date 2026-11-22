@@ -83,14 +83,22 @@ object Protocol {
         )
     }
 
-    fun clearDelay(channel: Int, actionOn: Boolean): ByteArray {
+    /**
+     * Cancels a pending delay without changing the relay's current state.
+     *
+     * The MCU interprets the state byte of a clear command as the opposite of
+     * the state that should remain active (protocol.md §2.5). Callers pass the
+     * current state and the encoder sends its inverse, so the device keeps the
+     * relay exactly as it is.
+     */
+    fun clearDelay(channel: Int, currentOn: Boolean): ByteArray {
         require(channel in 0..255) { "channel must fit in one byte" }
         return byteArrayOf(
             FRAME_HEADER.toByte(),
             0x05,
             CMD_DELAYED.toByte(),
             channel.toByte(),
-            stateByte(actionOn),
+            stateByte(!currentOn),
             0x00,
             0x00,
         )

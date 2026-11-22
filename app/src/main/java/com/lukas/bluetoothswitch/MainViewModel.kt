@@ -181,6 +181,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (seconds !in 0..Protocol.MAX_DELAY_SECONDS) return
         rememberDelay(address, channel, seconds)
         bluetoothRepository.send(address, Protocol.setDelay(channel, on, seconds))
+        // Do not touch the cached relay state here: the switch state is only
+        // refreshed from the device's A0 notification / read-back.
+        bluetoothRepository.readStatus(address)
     }
 
     fun rememberDelay(address: String, channel: Int, seconds: Int) {
@@ -209,8 +212,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { settingsRepository.clearDelayMemories() }
     }
 
-    fun clearDelay(address: String, channel: Int, actionOn: Boolean) {
-        bluetoothRepository.send(address, Protocol.clearDelay(channel, actionOn))
+    fun clearDelay(address: String, channel: Int, currentOn: Boolean) {
+        bluetoothRepository.send(address, Protocol.clearDelay(channel, currentOn))
+        // Keep the current relay state until the device reports the result.
+        bluetoothRepository.readStatus(address)
     }
 
     fun readStatus(address: String) = bluetoothRepository.readStatus(address)

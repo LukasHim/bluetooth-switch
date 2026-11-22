@@ -41,10 +41,16 @@ class ProtocolTest {
     }
 
     @Test
-    fun `clear delay command`() {
+    fun `clear delay command sends opposite of current state`() {
+        // Current ON -> send 00, device keeps ON.
+        assertArrayEquals(
+            byteArrayOf(0xAA.toByte(), 0x05, 0xA2.toByte(), 0x02, 0x00, 0x00, 0x00),
+            Protocol.clearDelay(2, currentOn = true),
+        )
+        // Current OFF -> send FF, device keeps OFF.
         assertArrayEquals(
             byteArrayOf(0xAA.toByte(), 0x05, 0xA2.toByte(), 0x02, 0xFF.toByte(), 0x00, 0x00),
-            Protocol.clearDelay(2, true),
+            Protocol.clearDelay(2, currentOn = false),
         )
     }
 
